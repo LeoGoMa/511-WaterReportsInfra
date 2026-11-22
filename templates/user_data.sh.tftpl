@@ -1,0 +1,96 @@
+#!/bin/bash
+# Sin set -x: las contrasenas no deben quedar en /var/log/cloud-init-output.log
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+APP_DIR=/home/ubuntu/aguafix
+
+echo "== Swap de 1 GB (la t3.micro solo tiene 1 GB de RAM)"
+if [ ! -f /swapfile ]; then
+  fallocate -l 1G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+
+echo "== Docker y Docker Compose"
+apt-get -o DPkg::Lock::Timeout=300 update
+apt-get -o DPkg::Lock::Timeout=300 install -y docker.io docker-compose-v2 curl
+systemctl enable --now docker
+usermod -aG docker ubuntu
+
+echo "== No-IP: apuntar el hostname a la IP de esta EC2"
+cat > /usr/local/bin/noip-update.sh <<'NOIPEOF'
+#!/bin/bash
+NOIP_USER=$(echo '${base64encode(noip_username)}' | base64 -d)
+NOIP_PASS=$(echo '${base64encode(noip_password)}' | base64 -d)
+NOIP_HOST=$(echo '${base64encode(noip_hostname)}' | base64 -d)
+TOKEN=$(curl -sS -X PUT http://169.254.169.254/latest/api/token -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+IP=$(curl -sS -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4)
+RESPUESTA=$(curl -sS -u "$NOIP_USER:$NOIP_PASS" -A "AguaFix-EC2/1.0 aguafix@example.com" \
+  "https://dynupdate.no-ip.com/nic/update?hostname=$NOIP_HOST&myip=$IP")
+echo "$(date) IP=$IP No-IP respondio: $RESPUESTA" >> /var/log/aguafix-noip.log
+NOIPEOF
+chmod 700 /usr/local/bin/noip-update.sh
+/usr/local/bin/noip-update.sh || echo "No se pudo actualizar No-IP, revisa /var/log/aguafix-noip.log"
+# La IP publica cambia si la instancia se detiene y arranca; se vuelve a actualizar en cada reinicio.
+echo '@reboot root sleep 20 && /usr/local/bin/noip-update.sh' > /etc/cron.d/aguafix-noip
+
+echo "== Archivos de la API"
+mkdir -p "$APP_DIR"
+
+cat > "$APP_DIR/compose.yaml" <<'COMPOSEEOF'
+services:
+  api:
+    image: ${docker_image}
+    restart: unless-stopped
+    ports:
+      - 80:3000
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=$${DB_USER}
+      - POSTGRES_PASSWORD=$${DB_PASSWORD}
+      - POSTGRES_DB=$${DB_NAME}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${DB_USER} -d $${DB_NAME}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+COMPOSEEOF
+
+# Comillas simples: Compose no interpreta $ dentro de los valores.
+cat > "$APP_DIR/.env" <<'ENVEOF'
+PORT='3000'
+DB_HOST='postgres'
+DB_PORT='5432'
+DB_NAME='${db_name}'
+DB_USER='${db_user}'
+DB_PASSWORD='${db_password}'
+MAILER_SERVICE='${mailer_service}'
+MAILER_USER='${mailer_user}'
+MAILER_TOKEN='${mailer_token}'
+MAILER_CREW='${mailer_crew}'
+AWS_REGION='${aws_region}'
+AWS_BUCKET_NAME='${bucket_name}'
+ENVEOF
+
+chown -R ubuntu:ubuntu "$APP_DIR"
+chmod 600 "$APP_DIR/.env"
+
+echo "== Levantar API + PostgreSQL"
+cd "$APP_DIR"
+docker compose pull
+docker compose up -d
+echo "== Listo"

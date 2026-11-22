@@ -1,0 +1,24 @@
+# Copia este archivo como terraform.tfvars y llena los valores.
+# terraform.tfvars NO se sube a Git. No uses comillas simples (') dentro de los valores.
+
+aws_region      = "us-east-2"
+instance_type   = "t3.micro"
+public_key_path = "~/.ssh/aguafix_ed25519.pub"
+docker_image    = "tu_usuario_docker/water-reports-api:latest"
+
+# Unico en todo AWS: agrega algo tuyo al final
+bucket_name = "aguafix-fotos-tu-nombre"
+
+db_name     = "waterreportsdb"
+db_user     = "postgres"
+db_password = "una_contrasena_segura"
+
+mailer_service = "gmail"
+mailer_user    = "tucorreo@gmail.com"
+mailer_token   = "tu_app_password_de_gmail"
+mailer_crew    = "cuadrilla@municipio.gob.mx"
+
+# Hostname creado una vez en noip.com
+noip_username = "tu_usuario_noip"
+noip_password = "tu_contrasena_noip"
+noip_hostname = "aguafix-tu-nombre.ddns.net"
