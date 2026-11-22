@@ -55,6 +55,11 @@ variable "db_password" {
   description = "Contrasena de PostgreSQL"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = length(var.db_password) >= 8 && !strcontains(var.db_password, "'")
+    error_message = "db_password debe tener al menos 8 caracteres y no llevar comillas simples (rompen el .env del servidor)."
+  }
 }
 
 variable "mailer_service" {

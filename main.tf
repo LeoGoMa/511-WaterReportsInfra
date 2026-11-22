@@ -113,4 +113,9 @@ resource "aws_instance" "api" {
   tags = {
     Name = "${var.project_name}-api"
   }
+
+  # Una AMI nueva de Ubuntu no debe reemplazar el servidor (se perderia la base de datos).
+  lifecycle {
+    ignore_changes = [ami]
+  }
 }
