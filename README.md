@@ -123,3 +123,13 @@ Mientras la infraestructura esta encendida (precios de us-east-2):
 | Bucket S3          | centavos con pocas fotos                 |
 
 Por eso se ejecuta `terraform destroy` al terminar: sin recursos no hay cobro.
+
+
+## Flujo completo
+
+1. `terraform apply` crea la EC2, el bucket y el rol IAM.
+2. Al arrancar, la EC2 instala Docker, actualiza No-IP y levanta la API con compose.
+3. Un push a `main` en el repo de la API publica la imagen en Docker Hub.
+4. El mismo workflow entra por SSH a la EC2 y ejecuta `docker compose pull` y `up -d`.
+5. El front consume la API en `http://aguafixleo.ddns.net/`.
+6. `terraform destroy` borra todo al terminar.
