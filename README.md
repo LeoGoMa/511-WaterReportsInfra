@@ -110,3 +110,16 @@ cd ~/aguafix && docker compose ps && docker compose logs api --tail 50
 ## Lo que no se sube a Git
 
 `terraform.tfvars`, `*.tfstate`, `.terraform/` y las llaves SSH estan en `.gitignore`.
+
+## Costos estimados
+
+Mientras la infraestructura esta encendida (precios de us-east-2):
+
+| Recurso            | Costo aproximado                         |
+| ------------------ | ---------------------------------------- |
+| EC2 `t3.micro`     | ~0.01 USD por hora (gratis en free tier) |
+| IP publica IPv4    | ~0.005 USD por hora                      |
+| Disco gp3 de 20 GB | ~1.6 USD al mes                          |
+| Bucket S3          | centavos con pocas fotos                 |
+
+Por eso se ejecuta `terraform destroy` al terminar: sin recursos no hay cobro.
